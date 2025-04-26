@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>Mini Threads 超強版</title>
+  <style>
+    body {
+    font-family: 'Noto Sans TC', sans-serif;
+    background: #f4f6f8;
+    padding: 0px;
+    color: #333;
+    display: flex;
+    justify-content: center;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 480px;
+      padding: 15px;
+      background: #f9f9f9;
+      border-radius: 10px;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 10px;
+      color: #007bff;
+    }
+
+    .form-area {
+        background: #fff;
+        padding: 20px;
+        margin: 20px 0;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+      }
+
+      /* threadFeed 列表也加點間距 */
+      #threadFeed {
+        margin-top: 20px;
+      }
+
+    .auth-buttons, .post, .reply {
+      background: #fff;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    }
+    .post { position: relative; border-left: 6px solid #007bff; }
+    .reply { margin-left: 30px; background: #f8f9fa; border-left: 4px solid #6c757d; }
+    input, textarea {
+      width: 95%;
+      padding: 10px;
+      margin-top: 5px;
+      margin-bottom: 10px;
+      font-size: 14px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
+    button {
+      padding: 6px 14px;
+      font-size: 14px;
+      margin: 4px 4px 0 0;
+      border-radius: 20px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .like-button { background-color: #e2e6ea; }
+    .like-button:hover { background-color: #d6d8db; }
+    .liked { background-color: #007bff; color: white; }
+    .edit-button { background-color: #ffc107; color: white; }
+    .edit-button:hover { background-color: #e0a800; }
+    .delete-button { background-color: #dc3545; color: white; }
+    .delete-button:hover { background-color: #c82333; }
+    .disabled-button { background-color: gray; color: white; cursor: not-allowed; }
+    .action-area { margin-top: 10px; }
+    .timer { font-size: 12px; color: #888; margin-top: 5px; }
+    .reply-section { margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 10px; }
+
+    /* 新增彈跳動畫 */
+    @keyframes bounce {
+      0%   { transform: scale(1); }
+      30%  { transform: scale(1.3); }
+      50%  { transform: scale(0.9); }
+      70%  { transform: scale(1.1); }
+      100% { transform: scale(1); }
+    }
+    .bounce {
+      animation: bounce 0.4s;
+    }
+
+    .menu-button {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: none;
+      border: none;
+      font-size: 20px;
+      cursor: pointer;
+    }
+
+    .menu-content {
+        display: block;
+        position: absolute;
+        top: 30px;
+        right: 10px;
+        background-color: white;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        border-radius: 8px;
+        overflow: hidden;
+        opacity: 0;
+        transform: scaleY(0);
+        transform-origin: top right;
+        transition: all 0.3s ease;
+        z-index: 10;
+        pointer-events: none; /* 初始不可點擊 */
+      }
+
+      .menu-content.show {
+        opacity: 1;
+        transform: scaleY(1);
+        pointer-events: auto; /* 顯示時可點擊 */
+      }
+
+      .menu-content button {
+        display: block;
+        width: 100%;
+        padding: 8px 12px;
+        border: none;
+        background: white;
+        text-align: left;
+        font-size: 14px;
+        cursor: pointer;
+      }
+
+      .menu-content button:hover {
+        background: #f0f0f0;
+      }
+
+
+      .spinner {
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        border: 2px solid rgba(0, 0, 0, 0.2);
+        border-top-color: #007bff;
+        border-radius: 50%;
+        animation: spin 0.6s linear infinite;
+        margin-right: 6px;
+        vertical-align: middle;
+      }
+
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+
+
+      .char-count {
+        font-size: 12px;
+        text-align: right;
+        color: #666;
+        margin-top: -8px;
+        margin-bottom: 10px;
+      }
+
+      .char-count.over {
+        color: red;
+      }
+
+      img.post-image {
+        max-width: 100%;
+        height: auto;
+        border-radius: 8px;
+        margin-top: 10px;
+      }
+
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>Mini Threads</h1>
+
+  <div class="auth-buttons">
+    <input type="text" id="nickname" placeholder="暱稱">
+    <input type="email" id="email" placeholder="Email">
+    <input type="password" id="password" placeholder="Password">
+    <button onclick="signUp()">註冊</button>
+    <button onclick="signIn()">登入</button>
+    <button onclick="signOut()">登出</button>
+    <p id="userStatus">未登入</p>
+  </div>
+
+  <div class="form-area">
+    <textarea id="postContent" placeholder="你在想什麼？"></textarea>
+    <input type="file" id="postImage">
+    <div id="postCharCount" class="char-count">0/500</div>
+    <button onclick="addPost()">發文</button>
+  </div>
+
+  <div id="threadFeed"></div>
+</div>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-storage-compat.js"></script>
+
+<script>
+const firebaseConfig = {
+      apiKey: "AIzaSyBKOr5GwhQBG92TJ4kSVp2hg-JhpNHYClc",
+      authDomain: "mini-threads.firebaseapp.com",
+      projectId: "mini-threads",
+      storageBucket: "mini-threads.firebasestorage.app",
+      messagingSenderId: "149397208166",
+      appId: "1:149397208166:web:eb991d7c75a41eb1ab01a7"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+let unsubscribe = null;
+
+// 註冊、登入、登出功能
+function signUp() {
+  const nickname = document.getElementById("nickname").value.trim();
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value.trim();
+
+  if (nickname === "") {
+    alert("請輸入暱稱！");
+    return;
+  }
+
+  auth.createUserWithEmailAndPassword(email, password)
+    .then(userCredential => {
+      // 註冊成功後，更新暱稱（displayName）
+      return userCredential.user.updateProfile({
+        displayName: nickname
+      });
+    })
+    .then(() => {
+      alert("註冊成功！");
+    })
+    .catch(error => {
+      alert(error.message);
+    });
+}
+
+function signIn() {
+  const email = document.getElementById("email").value;
+  const password = document.getElementById("password").value;
+  auth.signInWithEmailAndPassword(email, password)
+    .then(() => alert("登入成功"))
+    .catch(error => alert(error.message));
+}
+
+function signOut() {
+  auth.signOut().then(() => alert("已登出"));
+}
+
+
+// 登入狀態變化
+auth.onAuthStateChanged(user => {
+  const status = document.getElementById("userStatus");
+  if (user) {
+    const displayName = user.displayName || user.email;
+    status.innerText = "已登入：" + displayName;
+    loadPosts();
+  } else {
+    status.innerText = "未登入";
+    if (unsubscribe) unsubscribe();
+    document.getElementById("threadFeed").innerHTML = "";
+  }
+});
+
+// 小工具：按鈕跳動動畫
+function animateBounce(element) {
+  element.classList.add("bounce");
+  setTimeout(() => {
+    element.classList.remove("bounce");
+  }, 400);
+}
+
+// 按讚／取消讚
+function likeItem(ref, currentLikes, likedByList, event) {
+  const user = auth.currentUser;
+  if (!user) return;
+  const userEmail = user.email;
+  const hasLiked = likedByList.includes(userEmail);
+  const likeButton = event.target;
+
+  if (hasLiked) {
+    ref.update({
+      likes: currentLikes - 1,
+      likedBy: firebase.firestore.FieldValue.arrayRemove(userEmail)
+    }).then(() => animateBounce(likeButton));
+  } else {
+    ref.update({
+      likes: currentLikes + 1,
+      likedBy: firebase.firestore.FieldValue.arrayUnion(userEmail)
+    }).then(() => animateBounce(likeButton));
+  }
+}
+
+// 修改內容
+function editItem(ref, oldContent) {
+  const newContent = prompt("請修改你的內容：", oldContent);
+  if (newContent !== null && newContent.trim() !== "") {
+    ref.update({ content: newContent.trim() });
+  }
+}
+
+// 刪除主貼文（順便刪回覆）
+async function deletePost(postId) {
+  if (!confirm("確定要刪除這篇貼文及所有回覆嗎？")) return;
+  const postRef = db.collection("posts").doc(postId);
+  const repliesSnapshot = await postRef.collection("replies").get();
+  const batch = db.batch();
+  repliesSnapshot.forEach(doc => batch.delete(doc.ref));
+  batch.delete(postRef);
+  batch.commit();
+}
+
+// 刪除單一回覆
+async function deleteReply(postId, replyId) {
+  if (!confirm("確定要刪除這則回覆嗎？")) return;
+  await db.collection("posts").doc(postId).collection("replies").doc(replyId).delete();
+}
+
+// 發文
+async function addPost() {
+  const content = document.getElementById("postContent").value.trim();
+  const user = auth.currentUser;
+  const postButton = document.querySelector(".form-area button");
+  const fileInput = document.getElementById("postImage");
+  const file = fileInput.files[0]; // 取第一個檔案
+
+  if (!user) {
+    alert("請先登入！");
+    return;
+  }
+  if (content === "" && !file) {
+    alert("請輸入內容或上傳圖片！");
+    return;
+  }
+  if (content.length > 500) {
+    alert("發文內容請勿超過500字！");
+    return;
+  }
+
+  postButton.disabled = true;
+  postButton.innerHTML = `<span class="spinner"></span> 發送中...`;
+
+  let imageUrl = "";
+
+  if (file) {
+    const storageRef = firebase.storage().ref();
+    const imageRef = storageRef.child(`postImages/${Date.now()}_${file.name}`);
+    await imageRef.put(file);
+    imageUrl = await imageRef.getDownloadURL();
+  }
+
+  db.collection("posts").add({
+    content: content,
+    image: imageUrl,  // image 欄位
+    user: user.displayName || user.email, // 優先使用暱稱，沒有才用email
+    email: user.email,
+    likes: 0,
+    likedBy: [],
+    time: new Date()
+  }).then(() => {
+    document.getElementById("postContent").value = "";
+    postCharCount.innerText = "0/500";  // <<< 加這行重設字數提示
+    postCharCount.classList.remove("over"); // 如果有紅字也順便拿掉
+    fileInput.value = ""; // 清除上傳框
+    postButton.disabled = false;
+    postButton.innerText = "發文";
+  }).catch(error => {
+    alert(error.message);
+    postButton.disabled = false;
+    postButton.innerText = "發文";
+  });
+}
+
+// 回覆
+function replyToPost(postId, replyInput) {
+  const replyContent = replyInput.value.trim();
+  const user = auth.currentUser;
+  const replyButton = replyInput.nextElementSibling;
+
+  if (!user) {
+    alert("請先登入！");
+    return;
+  }
+  if (replyContent === "") {
+    alert("請輸入回覆內容！");
+    return;
+  }
+  if (replyContent.length > 500) {
+    alert("回覆內容請勿超過500字！");
+    return;
+  }
+
+  replyButton.disabled = true;
+  replyButton.innerHTML = `<span class="spinner"></span> 回覆中...`;
+
+  db.collection("posts").doc(postId).collection("replies").add({
+    content: replyContent,
+    user: user.displayName || user.email,  // 優先使用暱稱
+    likes: 0,
+    likedBy: [],
+    time: new Date()
+  }).then(() => {
+    replyInput.value = "";
+    replyButton.disabled = false;
+    replyButton.innerText = "回覆";
+  }).catch(error => {
+    alert(error.message);
+    replyButton.disabled = false;
+    replyButton.innerText = "回覆";
+  });
+}
+
+// 載入貼文（即時更新版）
+function loadPosts() {
+  const container = document.getElementById("threadFeed");
+  container.innerHTML = "";
+
+  if (unsubscribe) unsubscribe();
+  const user = auth.currentUser;
+  const userEmail = user ? user.email : "";
+
+  unsubscribe = db.collection("posts").orderBy("time", "desc")
+    .onSnapshot(snapshot => {
+      container.innerHTML = "";
+
+      snapshot.forEach(doc => {
+        const post = doc.data();
+        const postRef = db.collection("posts").doc(doc.id);
+
+        const div = document.createElement("div");
+        div.className = "post";
+        div.style.position = "relative";
+
+        // 使用者名稱
+        const userLine = document.createElement("p");
+        userLine.innerText = post.user + " 說：";
+        div.appendChild(userLine);
+
+        // 顯示日期時間
+        const timeLine = document.createElement("div");
+        timeLine.style.fontSize = "12px";
+        timeLine.style.color = "#888";
+        timeLine.style.marginTop = "2px";
+        timeLine.innerText = formatTime(post.time.toDate());
+        div.appendChild(timeLine);
+
+        // 發文內容
+        const contentLine = document.createElement("p");
+        contentLine.innerText = post.content;
+        contentLine.style.marginTop = "5px";
+        div.appendChild(contentLine);
+
+        // 如果有圖片，顯示圖片
+        if (post.image) {
+          const img = document.createElement("img");
+          img.src = post.image;
+          img.className = "post-image";
+          img.style.maxWidth = "100%";
+          img.style.borderRadius = "8px";
+          img.style.marginTop = "10px";
+          div.appendChild(img);
+        }
+
+        const actionArea = document.createElement("div");
+        actionArea.className = "action-area";
+
+        // 按讚按鈕
+        const btn = document.createElement("button");
+        btn.className = "like-button";
+        btn.innerText = "👍 " + post.likes;
+        const hasLiked = post.likedBy && post.likedBy.includes(userEmail);
+        btn.classList.add(hasLiked ? "liked" : "not-liked");
+
+        btn.onclick = function(event) {
+          likeItem(postRef, post.likes, post.likedBy || [], event);
+        };
+        actionArea.appendChild(btn);
+
+        div.appendChild(actionArea);
+
+        const now = new Date();
+        const postTime = post.time.toDate();
+        let remainingTime = 15 * 60 * 1000 - (now - postTime);
+        const editable = (remainingTime > 0) && (post.user === userEmail);
+
+        if (post.user === userEmail) {
+          // ⋯按鈕
+          const menuButton = document.createElement("button");
+          menuButton.innerText = "⋯";
+          menuButton.className = "menu-button";
+          div.appendChild(menuButton);
+
+          const menuContent = document.createElement("div");
+          menuContent.className = "menu-content";
+
+          const editBtn = document.createElement("button");
+          editBtn.innerText = "✏️ 修改";
+          editBtn.onclick = function() { editItem(postRef, post.content); };
+          menuContent.appendChild(editBtn);
+
+          const deleteBtn = document.createElement("button");
+          deleteBtn.innerText = "🗑️ 刪除";
+          deleteBtn.onclick = function() { deletePost(doc.id); };
+          menuContent.appendChild(deleteBtn);
+
+          div.appendChild(menuContent);
+
+          menuButton.onclick = function(e) {
+            e.stopPropagation();
+            document.querySelectorAll('.menu-content').forEach(menu => {
+              if (menu !== menuContent) menu.classList.remove('show');
+            });
+            menuContent.classList.toggle('show');
+          };
+
+          document.addEventListener("click", function() {
+            document.querySelectorAll('.menu-content').forEach(menu => {
+              menu.classList.remove('show');
+            });
+          });
+
+          // 倒數顯示
+          const timerDiv = document.createElement("div");
+          timerDiv.className = "timer";
+          div.appendChild(timerDiv);
+
+          const timer = setInterval(() => {
+            if (remainingTime <= 0) {
+              clearInterval(timer);
+              editBtn.disabled = true;
+              editBtn.innerText = "✏️ 修改（已過期）";
+              timerDiv.innerText = "";
+            } else {
+              const min = Math.floor(remainingTime / 60000);
+              const sec = Math.floor((remainingTime % 60000) / 1000);
+              timerDiv.innerText = `剩 ${min}:${sec.toString().padStart(2, "0")} 可修改`;
+              remainingTime -= 1000;
+            }
+          }, 1000);
+        }
+
+        // 回覆輸入區
+        const replySection = document.createElement("div");
+        replySection.className = "reply-section";
+
+        const replyInput = document.createElement("input");
+        replyInput.placeholder = "回覆內容...";
+
+        const replyCharCount = document.createElement("div");
+        replyCharCount.className = "char-count";
+        replyCharCount.innerText = "0/500";
+
+        const replyBtn = document.createElement("button");
+        replyBtn.innerText = "回覆";
+        replyBtn.onclick = function() {
+          replyToPost(doc.id, replyInput);
+        };
+
+        replySection.appendChild(replyInput);
+        replySection.appendChild(replyCharCount);
+        replySection.appendChild(replyBtn);
+        div.appendChild(replySection);
+
+        // 加入即時字數監聽
+        replyInput.addEventListener("input", () => {
+          const len = replyInput.value.length;
+          replyCharCount.innerText = `${len}/500`;
+          if (len > 500) {
+            replyCharCount.classList.add("over");
+          } else {
+            replyCharCount.classList.remove("over");
+          }
+        });
+
+        // 新增 repliesContainer
+        const repliesContainer = document.createElement("div");
+        repliesContainer.className = "replies-container";
+        div.appendChild(repliesContainer);
+
+        // 監聽回覆
+        postRef.collection("replies").orderBy("time", "asc").onSnapshot(repliesSnapshot => {
+          repliesContainer.innerHTML = "";
+
+          repliesSnapshot.forEach(replyDoc => {
+            const reply = replyDoc.data();
+            const replyRef = postRef.collection("replies").doc(replyDoc.id);
+
+            const replyDiv = document.createElement("div");
+            replyDiv.className = "reply";
+            replyDiv.style.position = "relative";
+
+            const replyUserLine = document.createElement("p");
+            replyUserLine.innerText = reply.user + " 回覆：";
+            replyDiv.appendChild(replyUserLine);
+
+            // 顯示回覆日期時間
+            const replyTimeLine = document.createElement("div");
+            replyTimeLine.style.fontSize = "12px";
+            replyTimeLine.style.color = "#888";
+            replyTimeLine.style.marginTop = "2px";
+            replyTimeLine.innerText = formatTime(reply.time.toDate());
+            replyDiv.appendChild(replyTimeLine);
+
+            const replyContentLine = document.createElement("p");
+            replyContentLine.innerText = reply.content;
+            replyContentLine.style.marginTop = "5px";
+            replyDiv.appendChild(replyContentLine);
+
+            const replyActionArea = document.createElement("div");
+            replyActionArea.className = "action-area";
+
+            const replyLikeBtn = document.createElement("button");
+            replyLikeBtn.className = "like-button";
+            replyLikeBtn.innerText = "👍 " + reply.likes;
+            const replyHasLiked = reply.likedBy && reply.likedBy.includes(userEmail);
+            replyLikeBtn.classList.add(replyHasLiked ? "liked" : "not-liked");
+
+            replyLikeBtn.onclick = function(event) {
+              likeItem(replyRef, reply.likes, reply.likedBy || [], event);
+            };
+            replyActionArea.appendChild(replyLikeBtn);
+
+            replyDiv.appendChild(replyActionArea);
+
+            const now2 = new Date();
+            const replyTime = reply.time.toDate();
+            let replyRemainingTime = 15 * 60 * 1000 - (now2 - replyTime);
+            const replyEditable = (replyRemainingTime > 0) && (reply.user === userEmail);
+
+            if (reply.user === userEmail) {
+              const menuButton = document.createElement("button");
+              menuButton.innerText = "⋯";
+              menuButton.className = "menu-button";
+              replyDiv.appendChild(menuButton);
+
+              const menuContent = document.createElement("div");
+              menuContent.className = "menu-content";
+
+              const replyEditBtn = document.createElement("button");
+              replyEditBtn.innerText = "✏️ 修改";
+              replyEditBtn.onclick = function() { editItem(replyRef, reply.content); };
+              menuContent.appendChild(replyEditBtn);
+
+              const replyDelBtn = document.createElement("button");
+              replyDelBtn.innerText = "🗑️ 刪除";
+              replyDelBtn.onclick = function() { deleteReply(doc.id, replyDoc.id); };
+              menuContent.appendChild(replyDelBtn);
+
+              replyDiv.appendChild(menuContent);
+
+              menuButton.onclick = function(e) {
+                e.stopPropagation();
+                document.querySelectorAll('.menu-content').forEach(menu => {
+                  if (menu !== menuContent) menu.classList.remove('show');
+                });
+                menuContent.classList.toggle('show');
+              };
+
+              document.addEventListener("click", function() {
+                document.querySelectorAll('.menu-content').forEach(menu => {
+                  menu.classList.remove('show');
+                });
+              });
+
+              // 倒數顯示
+              const replyTimerDiv = document.createElement("div");
+              replyTimerDiv.className = "timer";
+              replyDiv.appendChild(replyTimerDiv);
+
+              const replyTimer = setInterval(() => {
+                if (replyRemainingTime <= 0) {
+                  clearInterval(replyTimer);
+                  replyEditBtn.disabled = true;
+                  replyEditBtn.innerText = "✏️ 修改（已過期）";
+                  replyTimerDiv.innerText = "";
+                } else {
+                  const min = Math.floor(replyRemainingTime / 60000);
+                  const sec = Math.floor((replyRemainingTime % 60000) / 1000);
+                  replyTimerDiv.innerText = `剩 ${min}:${sec.toString().padStart(2, "0")} 可修改`;
+                  replyRemainingTime -= 1000;
+                }
+              }, 1000);
+            }
+
+            repliesContainer.appendChild(replyDiv);
+          });
+        });
+
+        container.appendChild(div);
+      });
+    });
+}
+
+function formatTime(date) {
+  const now = new Date();
+  const diffMs = now - date;
+  const diffMin = Math.floor(diffMs / 60000);
+  const diffHour = Math.floor(diffMs / 3600000);
+
+  const y = date.getFullYear();
+  const m = (date.getMonth() + 1).toString().padStart(2, "0");
+  const d = date.getDate().toString().padStart(2, "0");
+  const h = date.getHours();
+  const min = date.getMinutes().toString().padStart(2, "0");
+  const hourText = (h < 12) ? `上午${h}` : `下午${h === 12 ? 12 : h-12}`;
+
+  if (diffMin < 1) {
+    return "剛剛";
+  } else if (diffMin < 60) {
+    return `${diffMin} 分鐘前`;
+  } else if (diffHour < 24) {
+    return `${diffHour} 小時前`;
+  } else {
+    const today = now.getDate();
+    const postDay = date.getDate();
+    if (today === postDay) {
+      return `今天 ${hourText}:${min}`;
+    } else if (today - 1 === postDay || (today === 1 && new Date(now.getFullYear(), now.getMonth(), 0).getDate() === postDay)) {
+      return `昨天 ${hourText}:${min}`;
+    } else {
+      return `${y}-${m}-${d} ${hourText}:${min}`;
+    }
+  }
+}
+
+
+const postContent = document.getElementById("postContent");
+const postCharCount = document.getElementById("postCharCount");
+
+postContent.addEventListener("input", () => {
+  const len = postContent.value.length;
+  postCharCount.innerText = `${len}/500`;
+  if (len > 500) {
+    postCharCount.classList.add("over");
+  } else {
+    postCharCount.classList.remove("over");
+  }
+});
+
+</script>
